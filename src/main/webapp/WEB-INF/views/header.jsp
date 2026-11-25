@@ -1,42 +1,31 @@
+<%@ page contentType="text/html; charset=UTF-8" %> 
+<%@ taglib prefix="c" uri="jakarta.tags.core" %> 
 <style>
-    body.dark {
-        background-color: #1e1e1e;
-        color: white;
-    }
+        body.dark {
+            background-color: #121212;
+            color: #ffffff;
+        }
 
-    body.dark a {
-        color: #80bfff;
-    }
+        body.dark input,
+        body.dark textarea,
+        body.dark select {
+            background-color: #2b2b2b;
+            color: #ffffff;
+            border: 1px solid #555;
+        }
 
-    body.dark input,
-    body.dark textarea {
-        background-color: #333;
-        color: white;
-        border: 1px solid #777;
-    }
+        body.dark a {
+            color: #80bfff;
+        }
 
-    body.dark table {
-        border-color: white;
-    }
-
-    body.dark th,
-    body.dark td {
-        border-color: white;
-    }
+        body.dark table {
+            border-color: #555;
+        }
 </style>
 
-<body class="${cookie.theme.value eq 'dark' ? 'dark' : ''}">
-
-<header>
-     <a href="${pageContext.request.contextPath}/cookies?action=dark">
-        Mode sombre
-    </a>
-
-    |
-
-    <a href="${pageContext.request.contextPath}/cookies?action=light">
-        Mode clair
-    </a>
-</header>
-
-<hr>
+<body class="${cookie.theme.value == 'dark' ? 'dark' : 'light'}">
+<div>
+<a href="${pageContext.request.contextPath}/theme?value=dark">Dark mode</a>
+|
+<a href="${pageContext.request.contextPath}/theme?value=light">Light mode</a>
+</div>

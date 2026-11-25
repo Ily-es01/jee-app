@@ -1,65 +1,54 @@
-
 package ma.app.model;
 
 import java.math.BigDecimal;
 
 public class Produit {
+     private Long id; 
+    private String nom; 
+    private String description; 
+    private BigDecimal prix; 
+    private int stock; 
 
-    private Long id;
-    private String nom;
-    private String description;
-    private BigDecimal prix;
-    private int stock;
+    public Produit() {} 
 
-    public Produit() {}
+    public Produit(Long id, String nom, String description, BigDecimal prix, int stock) { 
+        this.id = id; 
+        this.nom = nom; 
+        this.description = description; 
+        this.prix = prix; 
+        this.stock = stock; 
+    } 
 
-    public Produit(Long id, String nom, String description, BigDecimal prix, int stock) {
-        this.id = id;
-        this.nom = nom;
-        this.description = description;
-        this.prix = prix;
-        this.stock = stock;
-    }
-
-    // Getters
-    public Long getId() {
+    public Long getId(){
         return id;
     }
-
-    public String getNom() {
+    public  String getNom(){
         return nom;
     }
-
-    public String getDescription() {
+    public String getDescription(){
         return description;
     }
-
-    public BigDecimal getPrix() {
+    public BigDecimal getPrix(){
         return prix;
     }
-
-    public int getStock() {
+    public int getStock(){
         return stock;
     }
 
-    // Setters
-    public void setId(Long id) {
+    public void setId(Long id){
         this.id = id;
     }
-
-    public void setNom(String nom) {
+    public void setNom(String nom){
         this.nom = nom;
     }
-
-    public void setDescription(String description) {
-        this.description = description;
+    public void  setDescription(String description){
+         this.description=description;
     }
-
-    public void setPrix(BigDecimal prix) {
+    public void setPrix(BigDecimal prix){
         this.prix = prix;
     }
-
-    public void setStock(int stock) {
-        this.stock = stock;
+    public void setStock(int stock){
+        this.stock=stock;
     }
+
 }

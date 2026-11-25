@@ -1,3 +1,4 @@
+
 package ma.app.web;
 
 import java.io.IOException;
@@ -10,7 +11,6 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
 import ma.app.model.Produit;
 import ma.app.model.ProduitDAO;
@@ -21,94 +21,74 @@ public class ProduitServlet extends HttpServlet {
     private ProduitDAO dao;
 
     @Override
-    public void init() {
+    public void init() throws ServletException {
         dao = (ProduitDAO) getServletContext()
                 .getAttribute("produitDAO");
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse res)
+            throws IOException, ServletException {
 
         String action = req.getParameter("action");
 
-        // GET /produits : afficher la liste
         if (action == null) {
-
-            // Bonus : recherche
-            String q = req.getParameter("q");
-
-            if (q == null || q.trim().isEmpty()) {
-                req.setAttribute("produits", dao.findAll());
-            } else {
-                req.setAttribute("produits", dao.searchByName(q.trim()));
-            }
-
-            req.setAttribute("q", q);
-
-            // Récupérer le message flash
-            HttpSession session = req.getSession(false);
-
-            if (session != null) {
-                String flash = (String) session.getAttribute("flash");
-
-                if (flash != null) {
-                    req.setAttribute("flash", flash);
-                    session.removeAttribute("flash");
-                }
-            }
-
-            req.getRequestDispatcher("/WEB-INF/views/produits/list.jsp")
-                    .forward(req, resp);
-
+            action = "list";
         }
 
-        // GET /produits?action=new
-        else if ("new".equals(action)) {
+        if ("list".equals(action)) {
 
-            req.setAttribute("produit", new Produit());
+            req.setAttribute("produits", dao.findAll());
 
-            req.getRequestDispatcher("/WEB-INF/views/produits/form.jsp")
-                    .forward(req, resp);
+            req.getRequestDispatcher(
+                    "WEB-INF/views/produit/list.jsp"
+            ).forward(req, res);
 
-        }
+        } else if ("new".equals(action)) {
 
-        // GET /produits?action=edit&id=3
-        else if ("edit".equals(action)) {
+            req.getRequestDispatcher(
+                    "WEB-INF/views/produit/form.jsp"
+            ).forward(req, res);
+
+        } else if ("edit".equals(action)) {
 
             try {
                 Long id = Long.parseLong(req.getParameter("id"));
 
-                Produit produit = dao.findById(id);
+                Produit prod = dao.findById(id);
 
-                if (produit == null) {
-                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-                    return;
+                if (prod != null) {
+                    req.setAttribute("produit", prod);
+
+                    req.getRequestDispatcher(
+                            "WEB-INF/views/produit/form.jsp"
+                    ).forward(req, res);
+
+                } else {
+                    res.sendError(HttpServletResponse.SC_NOT_FOUND);
                 }
 
-                req.setAttribute("produit", produit);
-
-                req.getRequestDispatcher("/WEB-INF/views/produits/form.jsp")
-                        .forward(req, resp);
-
-            } catch (NumberFormatException | NullPointerException e) {
-                resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            } catch (NumberFormatException e) {
+                res.sendError(HttpServletResponse.SC_NOT_FOUND);
             }
 
         } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
     }
 
+
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse res)
+            throws IOException, ServletException {
 
         req.setCharacterEncoding("UTF-8");
 
+        Map<String, String> erreurs = new HashMap<>();
+
         String action = req.getParameter("action");
 
-        // Suppression
+        //DELETE
         if ("delete".equals(action)) {
 
             try {
@@ -117,138 +97,175 @@ public class ProduitServlet extends HttpServlet {
                 Produit produit = dao.findById(id);
 
                 if (produit == null) {
-                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+                    res.sendError(HttpServletResponse.SC_NOT_FOUND);
                     return;
                 }
 
                 dao.delete(id);
 
                 req.getSession().setAttribute(
-                        "flash",
-                        "Produit \"" + produit.getNom() + "\" supprimé."
+                        "flash", "Produit supprimé avec succès."
                 );
 
-                resp.sendRedirect(req.getContextPath() + "/produits");
+                res.sendRedirect(req.getContextPath() + "/produits");
                 return;
-
-            } catch (NumberFormatException | NullPointerException e) {
-                resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-                return;
-            }
-        }
-
-        // Récupération des paramètres
-        String idParam = req.getParameter("id");
-        String nom = req.getParameter("nom");
-        String description = req.getParameter("description");
-        String prixParam = req.getParameter("prix");
-        String stockParam = req.getParameter("stock");
-
-        Map<String, String> erreurs = new HashMap<>();
-
-        // Validation du nom
-        if (nom == null || nom.trim().length() < 2
-                || nom.trim().length() > 50) {
-
-            erreurs.put("nom",
-                    "Le nom doit contenir entre 2 et 50 caractères.");
-        }
-
-        // Validation de la description
-        if (description != null && description.length() > 255) {
-
-            erreurs.put("description",
-                    "La description ne doit pas dépasser 255 caractères.");
-        }
-
-        // Validation du prix
-        BigDecimal prix = null;
-
-        try {
-            prix = new BigDecimal(prixParam);
-
-            if (prix.compareTo(BigDecimal.ZERO) <= 0) {
-                erreurs.put("prix",
-                        "Le prix doit être strictement positif.");
-            }
-
-        } catch (NumberFormatException | NullPointerException e) {
-            erreurs.put("prix", "Veuillez saisir un prix valide.");
-        }
-
-        // Validation du stock
-        int stock = 0;
-
-        if (stockParam != null && !stockParam.trim().isEmpty()) {
-
-            try {
-                stock = Integer.parseInt(stockParam);
-
-                if (stock < 0) {
-                    erreurs.put("stock",
-                            "Le stock doit être supérieur ou égal à 0.");
-                }
 
             } catch (NumberFormatException e) {
-                erreurs.put("stock",
-                        "Le stock doit être un entier valide.");
+                res.sendError(HttpServletResponse.SC_NOT_FOUND);
+                return;
             }
         }
 
-        // Déterminer création ou modification
-        boolean modification = idParam != null
-                && !idParam.trim().isEmpty();
+     
+        else if (action == null || action.isEmpty()) {
 
-        Produit produit = new Produit();
+            String idP = req.getParameter("id");
+            String nom = req.getParameter("nom");
+            String description = req.getParameter("description");
+            String prixR = req.getParameter("prix");
+            String stockR = req.getParameter("stock");
 
-        produit.setNom(nom != null ? nom.trim() : "");
-        produit.setDescription(description);
-        produit.setPrix(prix);
-        produit.setStock(stock);
+   
+            nom = (nom == null) ? "" : nom.trim();
 
-        if (modification) {
+            description = (description == null)
+                    ? "" : description.trim();
 
-            try {
-                Long id = Long.parseLong(idParam);
+            prixR = (prixR == null) ? "" : prixR.trim();
 
-                Produit existant = dao.findById(id);
+            stockR = (stockR == null) ? "" : stockR.trim();
 
-                if (existant == null) {
-                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+     
+           // VALIDATE NAME
+           
+            if (nom.length() < 2 || nom.length() > 50) {
+                erreurs.put(
+                        "nom",
+                        "Le nom doit contenir entre 2 et 50 caractères."
+                );
+            }
+
+
+            //  VALIDATE DESCRIPTION
+    
+            if (description.length() > 255) {
+                erreurs.put(
+                        "description",
+                        "255 caractères maximum."
+                );
+            }
+
+
+            //  VALIDATE PRICE
+
+            BigDecimal prix = BigDecimal.ZERO;
+
+            if (prixR.isEmpty()) {
+
+                erreurs.put("prix", "Le prix est obligatoire.");
+
+            } else {
+
+                try {
+                    prix = new BigDecimal(prixR);
+
+                    if (prix.compareTo(BigDecimal.ZERO) <= 0) {
+                        erreurs.put(
+                                "prix",
+                                "Le prix doit être strictement positif."
+                        );
+                    }
+
+                } catch (NumberFormatException e) {
+                    erreurs.put(
+                            "prix",
+                            "Veuillez saisir un prix valide."
+                    );
+                }
+            }
+
+      
+            //  VALIDATE STOCK
+  
+            int stock = 0;
+
+            if (!stockR.isEmpty()) {
+
+                try {
+                    stock = Integer.parseInt(stockR);
+
+                    if (stock < 0) {
+                        erreurs.put(
+                                "stock",
+                                "Le stock ne peut pas être négatif."
+                        );
+                    }
+
+                } catch (NumberFormatException e) {
+                    erreurs.put(
+                            "stock",
+                            "Veuillez saisir un stock entier valide."
+                    );
+                }
+            }
+
+            //  PARSE ID
+            Long id = null;
+
+            if (idP != null && !idP.trim().isEmpty()) {
+
+                try {
+                    id = Long.parseLong(idP);
+
+                } catch (NumberFormatException e) {
+                    res.sendError(HttpServletResponse.SC_NOT_FOUND);
                     return;
                 }
 
-                produit.setId(id);
+                // Ensure the product exists when updating
+                if (dao.findById(id) == null) {
+                    res.sendError(HttpServletResponse.SC_NOT_FOUND);
+                    return;
+                }
+            }
 
-            } catch (NumberFormatException e) {
-                resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            //  CREATE PRODUIT OBJECT
+            Produit produit = new Produit(
+                    id, nom, description, prix, stock
+            );
+
+            req.setAttribute("prixSaisi", prixR);
+            req.setAttribute("stockSaisi", stockR);
+
+            // CHECK VALIDATION ERRORS
+             if (!erreurs.isEmpty()) {
+
+                req.setAttribute("erreurs", erreurs);
+                req.setAttribute("produit", produit);
+
+                req.getRequestDispatcher(
+                        "WEB-INF/views/produit/form.jsp"
+                ).forward(req, res);
+
                 return;
             }
-        }
 
-        // S'il existe des erreurs
-        if (!erreurs.isEmpty()) {
+            //  SAVE PRODUCT
+            dao.save(produit);
 
-            req.setAttribute("erreurs", erreurs);
-            req.setAttribute("produit", produit);
+            String message = (id == null)
+                    ? "Produit créé avec succès."
+                    : "Produit modifié avec succès.";
 
-            req.getRequestDispatcher("/WEB-INF/views/produits/form.jsp")
-                    .forward(req, resp);
+            req.getSession().setAttribute("flash", message);
 
+            res.sendRedirect(req.getContextPath() + "/produits");
             return;
         }
 
-        // Enregistrement
-        dao.save(produit);
-
-        // Message flash
-        String message = modification
-                ? "Produit \"" + produit.getNom() + "\" modifié."
-                : "Produit \"" + produit.getNom() + "\" enregistré.";
-
-        req.getSession().setAttribute("flash", message);
-
-        // PRG : Post / Redirect / Get
-        resp.sendRedirect(req.getContextPath() + "/produits");
+        //  UNKNOWN ACTION
+        else {
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
+        }
     }
 }
