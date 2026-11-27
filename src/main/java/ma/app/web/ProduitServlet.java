@@ -3,8 +3,10 @@ package ma.app.web;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.ConnectException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -13,17 +15,18 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import ma.app.model.Produit;
-import ma.app.model.ProduitDAO;
+import ma.app.dao.ContrainteException;
+import ma.app.dao.ProduitDao;
 
 @WebServlet("/produits")
 public class ProduitServlet extends HttpServlet {
 
-    private ProduitDAO dao;
+    private ProduitDao dao;
 
     @Override
     public void init() throws ServletException {
-        dao = (ProduitDAO) getServletContext()
-                .getAttribute("produitDAO");
+        dao = (ProduitDao) getServletContext()
+                .getAttribute("produitDao");
     }
 
     @Override
@@ -38,13 +41,15 @@ public class ProduitServlet extends HttpServlet {
 
         if ("list".equals(action)) {
 
-            req.setAttribute("produits", dao.findAll());
+        String motCle = req.getParameter("motCle");
+        String tri = req.getParameter("tri");
 
-            req.getRequestDispatcher(
-                    "WEB-INF/views/produit/list.jsp"
-            ).forward(req, res);
+        req.setAttribute("produits", dao.rechercher(motCle, tri));
 
-        } else if ("new".equals(action)) {
+        req.getRequestDispatcher(
+                "WEB-INF/views/produit/list.jsp"
+        ).forward(req, res);
+    } else if ("new".equals(action)) {
 
             req.getRequestDispatcher(
                     "WEB-INF/views/produit/form.jsp"
@@ -55,10 +60,10 @@ public class ProduitServlet extends HttpServlet {
             try {
                 Long id = Long.parseLong(req.getParameter("id"));
 
-                Produit prod = dao.findById(id);
+                Optional<Produit> prod = dao.trouverParId(id);
 
-                if (prod != null) {
-                    req.setAttribute("produit", prod);
+                if (prod.isPresent()) {
+                    req.setAttribute("produit", prod.get());
 
                     req.getRequestDispatcher(
                             "WEB-INF/views/produit/form.jsp"
@@ -77,7 +82,6 @@ public class ProduitServlet extends HttpServlet {
         }
     }
 
-
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse res)
             throws IOException, ServletException {
@@ -88,20 +92,20 @@ public class ProduitServlet extends HttpServlet {
 
         String action = req.getParameter("action");
 
-        //DELETE
+        // DELETE
         if ("delete".equals(action)) {
 
             try {
                 Long id = Long.parseLong(req.getParameter("id"));
 
-                Produit produit = dao.findById(id);
+                Optional<Produit> produit = dao.trouverParId(id);
 
-                if (produit == null) {
+                if (produit.isEmpty()) {
                     res.sendError(HttpServletResponse.SC_NOT_FOUND);
                     return;
                 }
 
-                dao.delete(id);
+                dao.supprimer(id);
 
                 req.getSession().setAttribute(
                         "flash", "Produit supprimé avec succès."
@@ -110,13 +114,19 @@ public class ProduitServlet extends HttpServlet {
                 res.sendRedirect(req.getContextPath() + "/produits");
                 return;
 
-            } catch (NumberFormatException e) {
+            }catch(ContrainteException e){
+                    req.getSession().setAttribute(
+                            "flash", "Impossible de supprimer ce produit : il est associé à une vente."
+                        );
+                        res.sendRedirect(req.getContextPath() + "/produits");
+                        return;
+            } 
+            catch (NumberFormatException e) {
                 res.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
             }
         }
 
-     
         else if (action == null || action.isEmpty()) {
 
             String idP = req.getParameter("id");
@@ -125,7 +135,6 @@ public class ProduitServlet extends HttpServlet {
             String prixR = req.getParameter("prix");
             String stockR = req.getParameter("stock");
 
-   
             nom = (nom == null) ? "" : nom.trim();
 
             description = (description == null)
@@ -135,9 +144,8 @@ public class ProduitServlet extends HttpServlet {
 
             stockR = (stockR == null) ? "" : stockR.trim();
 
-     
-           // VALIDATE NAME
-           
+            // VALIDATE NAME
+
             if (nom.length() < 2 || nom.length() > 50) {
                 erreurs.put(
                         "nom",
@@ -145,9 +153,8 @@ public class ProduitServlet extends HttpServlet {
                 );
             }
 
+            // VALIDATE DESCRIPTION
 
-            //  VALIDATE DESCRIPTION
-    
             if (description.length() > 255) {
                 erreurs.put(
                         "description",
@@ -155,8 +162,7 @@ public class ProduitServlet extends HttpServlet {
                 );
             }
 
-
-            //  VALIDATE PRICE
+            // VALIDATE PRICE
 
             BigDecimal prix = BigDecimal.ZERO;
 
@@ -184,9 +190,8 @@ public class ProduitServlet extends HttpServlet {
                 }
             }
 
-      
-            //  VALIDATE STOCK
-  
+            // VALIDATE STOCK
+
             int stock = 0;
 
             if (!stockR.isEmpty()) {
@@ -209,7 +214,8 @@ public class ProduitServlet extends HttpServlet {
                 }
             }
 
-            //  PARSE ID
+            // PARSE ID
+
             Long id = null;
 
             if (idP != null && !idP.trim().isEmpty()) {
@@ -223,13 +229,15 @@ public class ProduitServlet extends HttpServlet {
                 }
 
                 // Ensure the product exists when updating
-                if (dao.findById(id) == null) {
+
+                if (dao.trouverParId(id).isEmpty()) {
                     res.sendError(HttpServletResponse.SC_NOT_FOUND);
                     return;
                 }
             }
 
-            //  CREATE PRODUIT OBJECT
+            // CREATE PRODUIT OBJECT
+
             Produit produit = new Produit(
                     id, nom, description, prix, stock
             );
@@ -238,7 +246,8 @@ public class ProduitServlet extends HttpServlet {
             req.setAttribute("stockSaisi", stockR);
 
             // CHECK VALIDATION ERRORS
-             if (!erreurs.isEmpty()) {
+
+            if (!erreurs.isEmpty()) {
 
                 req.setAttribute("erreurs", erreurs);
                 req.setAttribute("produit", produit);
@@ -250,8 +259,13 @@ public class ProduitServlet extends HttpServlet {
                 return;
             }
 
-            //  SAVE PRODUCT
-            dao.save(produit);
+            // SAVE PRODUCT
+
+            if (id == null) {
+                dao.creer(produit);
+            } else {
+                dao.modifier(produit);
+            }
 
             String message = (id == null)
                     ? "Produit créé avec succès."
@@ -263,7 +277,8 @@ public class ProduitServlet extends HttpServlet {
             return;
         }
 
-        //  UNKNOWN ACTION
+        // UNKNOWN ACTION
+
         else {
             res.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
